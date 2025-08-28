@@ -1,2 +1,0 @@
-C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\publish\win-x64\lq.pdb
-C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\publish\win-x64\lq.exe

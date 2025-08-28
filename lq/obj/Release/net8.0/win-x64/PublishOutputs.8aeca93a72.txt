@@ -1,2 +1,0 @@
-C:\Users\b0o007t\Source\Repos\ldapx\ldapx\bin\Release\net8.0\publish\win-x64\ldapx.pdb
-C:\Users\b0o007t\Source\Repos\ldapx\ldapx\bin\Release\net8.0\publish\win-x64\ldapx.exe
