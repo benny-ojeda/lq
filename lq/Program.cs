@@ -425,6 +425,8 @@ namespace lq
                 "  -o, --output <fmt>              Output format: json, csv",
                 "  -u, --username <user>           Username for authentication",
                 "  -pw, --password <pass>          Password for authentication",
+                "  -c, --count                     Show object count at the end of the output",
+                "  -co, --count-only               Show only the object count (no query output)",
                 "  -h, --help                      Show this help message and exit",
                 "  -v, --version                   Show version information and exit",
                 "",
@@ -446,7 +448,9 @@ namespace lq
                 $"  {exe} -s dc01 -f \"(samaccountname=jdoe)\" -p cn,mail -o json",
                 $"  {exe} -s dc01:3268 -f \"(objectClass=computer)\" -o csv",
                 $"  {exe} -i ids.txt -p cn,mail -o json",
-                $"  {exe} ids.txt -p cn,mail -o json"
+                $"  {exe} ids.txt -p cn,mail -o json",
+                $"  {exe} -f \"(objectClass=user)\" -c",
+                $"  {exe} -f \"(objectClass=user)\" --count-only"
             };
 
             int maxLen = lines.Max(l => l.Length);
@@ -569,6 +573,10 @@ namespace lq
                 { "username", "username" },
                 { "pw", "password" },
                 { "password", "password" },
+                { "c", "count" },
+                { "count", "count" },
+                { "co", "count-only" },
+                { "count-only", "count-only" },
                 { "h", "help" },
                 { "help", "help" },
                 { "v", "version" },
@@ -1119,6 +1127,15 @@ namespace lq
 
             var ldapService = new LdapService(server!, username, password, port);
 
+            // Count options
+            bool countOnly = argDict.ContainsKey("count-only");
+            bool showCount = argDict.ContainsKey("count");
+            if (countOnly)
+            {
+                // countOnly supersedes showCount
+                showCount = false;
+            }
+
             try
             {
                 List<Dictionary<string, object>> results;
@@ -1154,7 +1171,18 @@ namespace lq
                     results = ldapService.Search(ldapFilter!, propertiesToLoad);
                 }
                 
+                if (countOnly)
+                {
+                    Console.WriteLine(results.Count);
+                    return;
+                }
+
                 PrintResults(results, outputFormat, propertiesToLoad);
+
+                if (showCount)
+                {
+                    Console.WriteLine($"\nObject Count: {results.Count}");
+                }
             }
             catch (Exception)
             {
