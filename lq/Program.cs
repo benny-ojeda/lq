@@ -419,7 +419,7 @@ namespace lq
                 "  -dn, --distinguished-name <dn>  Search by Distinguished Name",
                 "  -i, --input <file>              File with samAccountName (one per line)",
                 "  -p, --properties <props>        Comma-separated list of properties",
-                "  -o, --output <fmt>              Output format: table, json, csv",
+                "  -o, --output <fmt>              Output format: json, csv",
                 "  -u, --username <user>           Username for authentication",
                 "  -w, --password <pass>           Password for authentication",
                 "  -h, --help                      Show this help message and exit",
@@ -651,8 +651,8 @@ namespace lq
                 propertiesToLoad = null;
             }
 
-            // If only one property is requested, print only the value(s) for that property, with color
-            if (propertiesToLoad != null && propertiesToLoad.Length == 1)
+            // If only one property is requested and format is default, print only the value(s) for that property
+            if (propertiesToLoad != null && propertiesToLoad.Length == 1 && format.ToLowerInvariant() == "default")
             {
                 string prop = propertiesToLoad[0];
                 bool colorize = Console.IsOutputRedirected == false;
@@ -685,9 +685,6 @@ namespace lq
                     break;
                 case "csv":
                     PrintCsv(results);
-                    break;
-                case "table":
-                    PrintTable(results);
                     break;
                 default:
                     PrintDefault(results);
@@ -747,43 +744,6 @@ namespace lq
                         Console.WriteLine();
                     }
                 }
-            }
-        }
-
-        static void PrintTable(List<Dictionary<string, object>> results)
-        {
-            if (results.Count == 0)
-            {
-                Console.WriteLine("No results.");
-                return;
-            }
-            bool colorize = Console.IsOutputRedirected == false;
-            var allKeys = results.SelectMany(d => d.Keys).Distinct().ToList();
-            for (int i = 0; i < allKeys.Count; i++)
-            {
-                WriteColored(allKeys[i], ConsoleColor.Cyan, colorize);
-                if (i < allKeys.Count - 1) Console.Write("\t");
-            }
-            Console.WriteLine();
-            foreach (var entry in results)
-            {
-                for (int i = 0; i < allKeys.Count; i++)
-                {
-                    if (!entry.TryGetValue(allKeys[i], out var v))
-                    {
-                        Console.Write("");
-                    }
-                    else if (v is List<string> list)
-                    {
-                        WriteValueColored(string.Join(";", list), colorize);
-                    }
-                    else
-                    {
-                        WriteValueColored(v, colorize);
-                    }
-                    if (i < allKeys.Count - 1) Console.Write("\t");
-                }
-                Console.WriteLine();
             }
         }
 
