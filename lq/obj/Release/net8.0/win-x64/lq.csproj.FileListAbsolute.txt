@@ -1,0 +1,17 @@
+C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\win-x64\lq.exe
+C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\win-x64\lq.deps.json
+C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\win-x64\lq.runtimeconfig.json
+C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\win-x64\lq.dll
+C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\win-x64\lq.pdb
+C:\Users\b0o007t\Source\Repos\lq\lq\bin\Release\net8.0\win-x64\System.DirectoryServices.dll
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.csproj.AssemblyReference.cache
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.AssemblyInfoInputs.cache
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.AssemblyInfo.cs
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.csproj.CoreCompileInputs.cache
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.csproj.Up2Date
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.dll
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\refint\lq.dll
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.pdb
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\lq.genruntimeconfig.cache
+C:\Users\b0o007t\Source\Repos\lq\lq\obj\Release\net8.0\win-x64\ref\lq.dll
