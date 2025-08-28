@@ -150,7 +150,7 @@ namespace lq
                 }
                 catch
                 {
-                    // Last resort: parse the DN and search by components
+                    // Last resort: parse the DN and search with components
                     return SearchByDistinguishedNameFallback(distinguishedName, propertiesToLoad);
                 }
             }
@@ -416,15 +416,15 @@ namespace lq
                 "OPTIONS:",
                 "  -s, --server <server>[:port]    Specify the domain controller or GC host",
                 "  -f, --filter <ldapFilter>       LDAP filter (RFC 4515)",
-                "  -dn, --distinguished-name <dn>  Search by Distinguished Name",
+                "  -dn, --distinguishedname <dn>   Search by Distinguished Name",
                 "  -sid, --sid <sid>               Search by SID (e.g., S-1-5-21-...)",
-                "  -email, --email <email>         Search by email (mail attribute)",
+                "  -e, --email <email>             Search by email (mail attribute)",
                 "  -i, --input <file>              File with samAccountName, DN, SID, or email (one per line)",
                 "                                  (You can also pass the file as the first positional argument)",
                 "  -p, --properties <props>        Comma-separated list of properties",
                 "  -o, --output <fmt>              Output format: json, csv",
                 "  -u, --username <user>           Username for authentication",
-                "  -w, --password <pass>           Password for authentication",
+                "  -pw, --password <pass>          Password for authentication",
                 "  -h, --help                      Show this help message and exit",
                 "  -v, --version                   Show version information and exit",
                 "",
@@ -436,15 +436,15 @@ namespace lq
                 "                                    (alternative to -p switch)",
                 "",
                 "EXAMPLES:",
-                $"  {exe} -s dc1 -f \"(objectClass=user)\"",
+                $"  {exe} -s dc01 -f \"(objectClass=user)\"",
                 $"  {exe} -dn \"CN=John Doe,OU=Users,DC=contoso,DC=com\"",
                 $"  {exe} \"CN=John Doe,OU=Users,DC=contoso,DC=com\" -p cn,mail",
-                $"  {exe} user1",
-                $"  {exe} user1 cn,mail",
+                $"  {exe} jdoe",
+                $"  {exe} jdoe cn,mail",
                 $"  {exe} -sid S-1-5-21-123-456-789-1001",
-                $"  {exe} -email john.doe@contoso.com",
-                $"  {exe} -s dc1 -f \"(samaccountname=user1)\" -p cn,mail -o json",
-                $"  {exe} -s dc1:3268 -f \"(objectClass=computer)\" -o csv",
+                $"  {exe} -e john.doe@contoso.com",
+                $"  {exe} -s dc01 -f \"(samaccountname=jdoe)\" -p cn,mail -o json",
+                $"  {exe} -s dc01:3268 -f \"(objectClass=computer)\" -o csv",
                 $"  {exe} -i ids.txt -p cn,mail -o json",
                 $"  {exe} ids.txt -p cn,mail -o json"
             };
@@ -555,17 +555,19 @@ namespace lq
                 { "server", "server" },
                 { "f", "filter" },
                 { "filter", "filter" },
-                { "dn", "distinguished-name" },
-                { "distinguished-name", "distinguished-name" },
+                { "dn", "distinguishedname" },
+                { "distinguishedname", "distinguishedname" },
+                { "distinguished-name", "distinguishedname" },
                 { "sid", "sid" },
                 { "email", "email" },
+                { "e", "email" },
                 { "p", "properties" },
                 { "properties", "properties" },
                 { "o", "output" },
                 { "output", "output" },
                 { "u", "username" },
                 { "username", "username" },
-                { "w", "password" },
+                { "pw", "password" },
                 { "password", "password" },
                 { "h", "help" },
                 { "help", "help" },
@@ -610,7 +612,7 @@ namespace lq
                             PrintVersion();
                             Environment.Exit(0);
                         }
-                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
+                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguishedname" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
                             && (value == null || value.Trim().Length == 0))
                         {
                             Console.Error.WriteLine($"Error: Option '--{key}' requires a value.");
@@ -628,7 +630,7 @@ namespace lq
                 }
                 else if (args[i].StartsWith("-") && !args[i].StartsWith("--"))
                 {
-                    // Support single-dash options with one or more letters (e.g., -s, -f, -dn, -sid, -email)
+                    // Support single-dash options with one or more letters (e.g., -s, -f, -dn, -sid, -e)
                     var key = args[i][1..];
                     string? value = null;
                     if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
@@ -649,7 +651,7 @@ namespace lq
                             PrintVersion();
                             Environment.Exit(0);
                         }
-                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
+                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguishedname" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
                             && (value == null || value.Trim().Length == 0))
                         {
                             Console.Error.WriteLine($"Error: Option '-{key}' requires a value.");
@@ -671,7 +673,7 @@ namespace lq
                             PrintVersion();
                             Environment.Exit(0);
                         }
-                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
+                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguishedname" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
                             && (value == null || value.Trim().Length == 0))
                         {
                             Console.Error.WriteLine($"Error: Option '-{key}' requires a value.");
@@ -702,7 +704,7 @@ namespace lq
                         {
                             // If a target is already specified via switches or input, treat this as properties
                             bool targetAlreadySpecified = dict.ContainsKey("filter")
-                                || dict.ContainsKey("distinguished-name")
+                                || dict.ContainsKey("distinguishedname")
                                 || dict.ContainsKey("input")
                                 || dict.ContainsKey("dn-input")
                                 || dict.ContainsKey("sid")
@@ -752,7 +754,7 @@ namespace lq
             }
 
             // If no filter or DN is set, determine filter based on samfile or positionalSam
-            if (!dict.ContainsKey("filter") && !dict.ContainsKey("distinguished-name"))
+            if (!dict.ContainsKey("filter") && !dict.ContainsKey("distinguishedname"))
             {
                 if (dict.TryGetValue("input", out var inputFile) && !string.IsNullOrWhiteSpace(inputFile))
                 {
@@ -798,7 +800,7 @@ namespace lq
                 {
                     if (IsLikelyDistinguishedName(positionalSam))
                     {
-                        dict["distinguished-name"] = positionalSam;
+                        dict["distinguishedname"] = positionalSam;
                     }
                     else if (IsValidSamAccountName(positionalSam))
                     {
@@ -1042,7 +1044,7 @@ namespace lq
 
             argDict.TryGetValue("server", out server);
             argDict.TryGetValue("filter", out ldapFilter);
-            argDict.TryGetValue("distinguished-name", out distinguishedName);
+            argDict.TryGetValue("distinguishedname", out distinguishedName);
             bool hasDnInput = argDict.TryGetValue("dn-input", out var dnInputFile) && !string.IsNullOrWhiteSpace(dnInputFile);
 
             // Track whether user explicitly set -s/--server
@@ -1068,7 +1070,7 @@ namespace lq
             // Check that either filter or DN is provided (or DN batch input)
             if (string.IsNullOrWhiteSpace(ldapFilter) && string.IsNullOrWhiteSpace(distinguishedName) && !hasDnInput)
             {
-                Console.Error.WriteLine("Error: Either --filter|-f or --distinguished-name|-dn is required, or provide -i with a DN list.");
+                Console.Error.WriteLine("Error: Either --filter|-f or --distinguishedname|-dn is required, or provide -i with a DN list.");
                 PrintUsage();
                 Environment.Exit(1);
             }
@@ -1076,7 +1078,7 @@ namespace lq
             // Check that both filter and DN are not provided at the same time
             if (!string.IsNullOrWhiteSpace(ldapFilter) && !string.IsNullOrWhiteSpace(distinguishedName))
             {
-                Console.Error.WriteLine("Error: Cannot specify both --filter|-f and --distinguished-name|-dn at the same time.");
+                Console.Error.WriteLine("Error: Cannot specify both --filter|-f and --distinguishedname|-dn at the same time.");
                 PrintUsage();
                 Environment.Exit(1);
             }
