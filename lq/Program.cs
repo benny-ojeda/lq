@@ -411,13 +411,16 @@ namespace lq
                 $"{exe,-10} - {ToolDescription}",
                 "",
                 "USAGE:",
-                $"  {exe} [options] [samAccountName] [properties]",
+                $"  {exe} [options] [samAccountName|DN|SID|email|inputFile] [properties]",
                 "",
                 "OPTIONS:",
                 "  -s, --server <server>[:port]    Specify the domain controller or GC host",
                 "  -f, --filter <ldapFilter>       LDAP filter (RFC 4515)",
                 "  -dn, --distinguished-name <dn>  Search by Distinguished Name",
-                "  -i, --input <file>              File with samAccountName (one per line)",
+                "  -sid, --sid <sid>               Search by SID (e.g., S-1-5-21-...)",
+                "  -email, --email <email>         Search by email (mail attribute)",
+                "  -i, --input <file>              File with samAccountName, DN, SID, or email (one per line)",
+                "                                  (You can also pass the file as the first positional argument)",
                 "  -p, --properties <props>        Comma-separated list of properties",
                 "  -o, --output <fmt>              Output format: json, csv",
                 "  -u, --username <user>           Username for authentication",
@@ -426,19 +429,24 @@ namespace lq
                 "  -v, --version                   Show version information and exit",
                 "",
                 "ARGUMENTS:",
-                "  samAccountName                   If no filter or DN is specified, this is used",
-                "                                    as (samaccountname=<value>)",
+                "  samAccountName|DN|SID|email|file If no filter or DN is specified, the first argument",
+                "                                    is treated as samAccountName, Distinguished Name, SID,",
+                "                                    email, or as an input file path",
                 "  properties                       Comma-separated list of properties to retrieve",
                 "                                    (alternative to -p switch)",
                 "",
                 "EXAMPLES:",
                 $"  {exe} -s dc1 -f \"(objectClass=user)\"",
                 $"  {exe} -dn \"CN=John Doe,OU=Users,DC=contoso,DC=com\"",
-                $"  {exe} -dn \"CN=John Doe,OU=Users,DC=contoso,DC=com\" -p cn,mail",
+                $"  {exe} \"CN=John Doe,OU=Users,DC=contoso,DC=com\" -p cn,mail",
                 $"  {exe} user1",
                 $"  {exe} user1 cn,mail",
+                $"  {exe} -sid S-1-5-21-123-456-789-1001",
+                $"  {exe} -email john.doe@contoso.com",
                 $"  {exe} -s dc1 -f \"(samaccountname=user1)\" -p cn,mail -o json",
-                $"  {exe} -s dc1:3268 -f \"(objectClass=computer)\" -o csv"
+                $"  {exe} -s dc1:3268 -f \"(objectClass=computer)\" -o csv",
+                $"  {exe} -i ids.txt -p cn,mail -o json",
+                $"  {exe} ids.txt -p cn,mail -o json"
             };
 
             int maxLen = lines.Max(l => l.Length);
@@ -479,6 +487,66 @@ namespace lq
             return Regex.IsMatch(sam, @"^[\w.\-$]{1,20}$");
         }
 
+        private static bool IsLikelyDistinguishedName(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line)) return false;
+            // Very lightweight DN heuristic: contains '=' and at least one RDN like CN/OU and a DC component
+            if (!line.Contains('=')) return false;
+            var upper = line.ToUpperInvariant();
+            return (upper.Contains("CN=") || upper.Contains("OU=") || upper.Contains("CN =") || upper.Contains("OU =") || upper.Contains("DC="));
+        }
+
+        private static bool IsValidSid(string s)
+        {
+            // Basic SID validation: S-1-... with digits and dashes
+            return Regex.IsMatch(s, @"^S-\d(-\d+){1,}$", RegexOptions.IgnoreCase);
+        }
+
+        private static bool IsValidEmail(string s)
+        {
+            // Simple email validation sufficient for CLI routing
+            return Regex.IsMatch(s, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+        }
+
+        private static string EscapeLdapFilter(string input)
+        {
+            // Escape special characters in LDAP filter values
+            return input
+                .Replace("\\", "\\5c")
+                .Replace("*", "\\2a")
+                .Replace("(", "\\28")
+                .Replace(")", "\\29")
+                .Replace("\0", "\\00");
+        }
+
+        private static string BuildSidFilterTerm(string sid)
+        {
+            // Build LDAP filter term for objectSid using binary escaped bytes (RFC 4515)
+            try
+            {
+                var sidObj = new SecurityIdentifier(sid);
+                var bytes = new byte[sidObj.BinaryLength];
+                sidObj.GetBinaryForm(bytes, 0);
+                var sb = new StringBuilder(bytes.Length * 3);
+                foreach (var b in bytes)
+                {
+                    sb.Append('\\');
+                    sb.Append(b.ToString("X2"));
+                }
+                return $"objectSid={sb}";
+            }
+            catch
+            {
+                // Fallback use string form (AD typically accepts this as well)
+                return $"objectSid={EscapeLdapFilter(sid)}";
+            }
+        }
+
+        private static string BuildEmailFilterTerm(string email)
+        {
+            return $"mail={EscapeLdapFilter(email)}";
+        }
+
         static Dictionary<string, string?> ParseArgs(string[] args)
         {
             var switchMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -489,6 +557,8 @@ namespace lq
                 { "filter", "filter" },
                 { "dn", "distinguished-name" },
                 { "distinguished-name", "distinguished-name" },
+                { "sid", "sid" },
+                { "email", "email" },
                 { "p", "properties" },
                 { "properties", "properties" },
                 { "o", "output" },
@@ -540,7 +610,7 @@ namespace lq
                             PrintVersion();
                             Environment.Exit(0);
                         }
-                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
+                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
                             && (value == null || value.Trim().Length == 0))
                         {
                             Console.Error.WriteLine($"Error: Option '--{key}' requires a value.");
@@ -556,8 +626,9 @@ namespace lq
                         Environment.Exit(1);
                     }
                 }
-                else if (args[i].StartsWith("-") && args[i].Length == 2)
+                else if (args[i].StartsWith("-") && !args[i].StartsWith("--"))
                 {
+                    // Support single-dash options with one or more letters (e.g., -s, -f, -dn, -sid, -email)
                     var key = args[i][1..];
                     string? value = null;
                     if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
@@ -565,6 +636,7 @@ namespace lq
                         value = args[i + 1];
                         i++;
                     }
+
                     if (switchMap.TryGetValue(key, out var mappedKey))
                     {
                         if (mappedKey == "help")
@@ -577,7 +649,29 @@ namespace lq
                             PrintVersion();
                             Environment.Exit(0);
                         }
-                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
+                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
+                            && (value == null || value.Trim().Length == 0))
+                        {
+                            Console.Error.WriteLine($"Error: Option '-{key}' requires a value.");
+                            PrintUsage();
+                            Environment.Exit(1);
+                        }
+                        dict[mappedKey] = value ?? "true";
+                    }
+                    else if (key.Length == 1 && switchMap.TryGetValue(key, out mappedKey))
+                    {
+                        // Single-letter short option (kept for completeness)
+                        if (mappedKey == "help")
+                        {
+                            PrintUsage();
+                            Environment.Exit(0);
+                        }
+                        if (mappedKey == "version")
+                        {
+                            PrintVersion();
+                            Environment.Exit(0);
+                        }
+                        if ((mappedKey == "server" || mappedKey == "username" || mappedKey == "password" || mappedKey == "filter" || mappedKey == "distinguished-name" || mappedKey == "sid" || mappedKey == "email" || mappedKey == "properties" || mappedKey == "output" || mappedKey == "input")
                             && (value == null || value.Trim().Length == 0))
                         {
                             Console.Error.WriteLine($"Error: Option '-{key}' requires a value.");
@@ -596,9 +690,32 @@ namespace lq
                 else
                 {
                     // Handle positional arguments
+                    // Treat first positional as input file if it exists; otherwise decide between target and properties
                     if (positionalSam == null)
                     {
-                        positionalSam = args[i];
+                        // If the first positional is a file path, treat it as input file
+                        if (!dict.ContainsKey("input") && File.Exists(args[i]))
+                        {
+                            dict["input"] = args[i];
+                        }
+                        else
+                        {
+                            // If a target is already specified via switches or input, treat this as properties
+                            bool targetAlreadySpecified = dict.ContainsKey("filter")
+                                || dict.ContainsKey("distinguished-name")
+                                || dict.ContainsKey("input")
+                                || dict.ContainsKey("dn-input")
+                                || dict.ContainsKey("sid")
+                                || dict.ContainsKey("email");
+                            if (targetAlreadySpecified)
+                            {
+                                positionalProperties = args[i];
+                            }
+                            else
+                            {
+                                positionalSam = args[i];
+                            }
+                        }
                     }
                     else if (positionalProperties == null)
                     {
@@ -619,24 +736,90 @@ namespace lq
                 dict["properties"] = positionalProperties;
             }
 
+            // If explicit --sid/--email was provided and no filter was provided, convert to filter
+            if (!dict.ContainsKey("filter"))
+            {
+                if (dict.TryGetValue("sid", out var sidValue) && !string.IsNullOrWhiteSpace(sidValue))
+                {
+                    dict["filter"] = $"({BuildSidFilterTerm(sidValue)})";
+                    dict["sid-search"] = "true";
+                }
+                else if (dict.TryGetValue("email", out var emailValue) && !string.IsNullOrWhiteSpace(emailValue))
+                {
+                    dict["filter"] = $"({BuildEmailFilterTerm(emailValue)})";
+                    dict["email-search"] = "true";
+                }
+            }
+
             // If no filter or DN is set, determine filter based on samfile or positionalSam
             if (!dict.ContainsKey("filter") && !dict.ContainsKey("distinguished-name"))
             {
                 if (dict.TryGetValue("input", out var inputFile) && !string.IsNullOrWhiteSpace(inputFile))
                 {
-                    var samList = ReadSamAccountNamesFromFile(inputFile);
-                    // Build an OR filter: (|(samaccountname=sam1)(samaccountname=sam2)...)
-                    var filter = "(|" + string.Join("", samList.Select(s => $"(samaccountname={s})")) + ")";
-                    dict["filter"] = filter;
+                    var lines = ReadNonEmptyLinesFromFile(inputFile);
+                    if (lines.Count == 0)
+                    {
+                        Console.Error.WriteLine($"Error: No entries found in file '{inputFile}'.");
+                        Environment.Exit(1);
+                    }
+
+                    if (lines.All(IsLikelyDistinguishedName))
+                    {
+                        // Mark as DN batch input
+                        dict["dn-input"] = inputFile;
+                    }
+                    else if (lines.All(IsValidSamAccountName))
+                    {
+                        // Build an OR filter: (|(samaccountname=sam1)(samaccountname=sam2)...)
+                        var filter = "(|" + string.Join("", lines.Select(s => $"(samaccountname={s})")) + ")";
+                        dict["filter"] = filter;
+                    }
+                    else if (lines.All(IsValidSid))
+                    {
+                        // Build OR filter for SIDs using binary format
+                        var filter = "(|" + string.Join("", lines.Select(s => $"({BuildSidFilterTerm(s)})")) + ")";
+                        dict["filter"] = filter;
+                        dict["sid-search"] = "true";
+                    }
+                    else if (lines.All(IsValidEmail))
+                    {
+                        // Build OR filter for emails (mail attr)
+                        var filter = "(|" + string.Join("", lines.Select(s => $"({BuildEmailFilterTerm(s)})")) + ")";
+                        dict["filter"] = filter;
+                        dict["email-search"] = "true";
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Error: The file '{inputFile}' contains invalid or mixed entries. Use either all samAccountNames, all Distinguished Names, all SIDs, or all emails.");
+                        Environment.Exit(1);
+                    }
                 }
                 else if (positionalSam != null)
                 {
-                    if (!IsValidSamAccountName(positionalSam))
+                    if (IsLikelyDistinguishedName(positionalSam))
                     {
-                        Console.Error.WriteLine($"Error: Invalid samAccountName '{positionalSam}'.");
+                        dict["distinguished-name"] = positionalSam;
+                    }
+                    else if (IsValidSamAccountName(positionalSam))
+                    {
+                        dict["filter"] = $"(samaccountname={positionalSam})";
+                    }
+                    else if (IsValidSid(positionalSam))
+                    {
+                        dict["filter"] = $"({BuildSidFilterTerm(positionalSam)})";
+                        dict["sid-search"] = "true";
+                    }
+                    else if (IsValidEmail(positionalSam))
+                    {
+                        dict["filter"] = $"({BuildEmailFilterTerm(positionalSam)})";
+                        dict["email-search"] = "true";
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("Error: The first argument is neither a valid samAccountName, Distinguished Name, SID, nor email.");
+                        PrintUsage();
                         Environment.Exit(1);
                     }
-                    dict["filter"] = $"(samaccountname={positionalSam})";
                 }
             }
 
@@ -837,6 +1020,17 @@ namespace lq
             return list;
         }
 
+        static List<string> ReadNonEmptyLinesFromFile(string filename)
+        {
+            var list = new List<string>();
+            foreach (var line in File.ReadLines(filename))
+            {
+                var s = line.Trim();
+                if (!string.IsNullOrWhiteSpace(s)) list.Add(s);
+            }
+            return list;
+        }
+
         static void Main(string[] args)
         {
             var argDict = ParseArgs(args);
@@ -849,6 +1043,10 @@ namespace lq
             argDict.TryGetValue("server", out server);
             argDict.TryGetValue("filter", out ldapFilter);
             argDict.TryGetValue("distinguished-name", out distinguishedName);
+            bool hasDnInput = argDict.TryGetValue("dn-input", out var dnInputFile) && !string.IsNullOrWhiteSpace(dnInputFile);
+
+            // Track whether user explicitly set -s/--server
+            bool serverSpecified = argDict.ContainsKey("server");
 
             // If server is not specified, use the current domain's DNS name
             if (string.IsNullOrWhiteSpace(server))
@@ -867,10 +1065,10 @@ namespace lq
                 }
             }
 
-            // Check that either filter or DN is provided
-            if (string.IsNullOrWhiteSpace(ldapFilter) && string.IsNullOrWhiteSpace(distinguishedName))
+            // Check that either filter or DN is provided (or DN batch input)
+            if (string.IsNullOrWhiteSpace(ldapFilter) && string.IsNullOrWhiteSpace(distinguishedName) && !hasDnInput)
             {
-                Console.Error.WriteLine("Error: Either --filter|-f or --distinguished-name|-dn is required.");
+                Console.Error.WriteLine("Error: Either --filter|-f or --distinguished-name|-dn is required, or provide -i with a DN list.");
                 PrintUsage();
                 Environment.Exit(1);
             }
@@ -909,13 +1107,43 @@ namespace lq
                 port = prt;
             }
 
+            // Auto-use GC for SID/email searches when -s not specified
+            bool sidSearch = argDict.ContainsKey("sid-search") || (!string.IsNullOrEmpty(ldapFilter) && ldapFilter.IndexOf("objectsid=", StringComparison.OrdinalIgnoreCase) >= 0);
+            bool emailSearch = argDict.ContainsKey("email-search") || (!string.IsNullOrEmpty(ldapFilter) && ldapFilter.IndexOf("mail=", StringComparison.OrdinalIgnoreCase) >= 0);
+            if (!serverSpecified && string.IsNullOrWhiteSpace(distinguishedName) && (sidSearch || emailSearch))
+            {
+                port = 3268; // GC
+            }
+
             var ldapService = new LdapService(server!, username, password, port);
 
             try
             {
                 List<Dictionary<string, object>> results;
                 
-                if (!string.IsNullOrWhiteSpace(distinguishedName))
+                if (hasDnInput)
+                {
+                    var dns = ReadNonEmptyLinesFromFile(dnInputFile!);
+                    var aggregated = new List<Dictionary<string, object>>();
+                    foreach (var dn in dns)
+                    {
+                        try
+                        {
+                            var r = ldapService.SearchByDistinguishedName(dn, propertiesToLoad);
+                            if (r.Count == 0)
+                            {
+                                Console.Error.WriteLine($"No results for DN: {dn}");
+                            }
+                            aggregated.AddRange(r);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.Error.WriteLine($"Failed to search DN '{dn}': {ex.Message}");
+                        }
+                    }
+                    results = aggregated;
+                }
+                else if (!string.IsNullOrWhiteSpace(distinguishedName))
                 {
                     results = ldapService.SearchByDistinguishedName(distinguishedName, propertiesToLoad);
                 }
